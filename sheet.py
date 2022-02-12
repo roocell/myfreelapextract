@@ -19,6 +19,8 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
+alphabet = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L",
+            "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "X", "Y", "Z"]
 
 #Authorize the API
 scope = [
@@ -45,8 +47,6 @@ def updateEntry(session, tagid, splitsStrings):
         seconds = float(parts[1])
         splits.append(minutes*60+seconds)
 
-    log.debug(splits)
-
     # find tagid in roster, if not present, then add one
     sheet = client.open(gsheetfile).worksheet("Athlete Roster")
 
@@ -56,8 +56,8 @@ def updateEntry(session, tagid, splitsStrings):
     rosterIdCol = 3 # 'C'
     if rosterid == None:
         # loop through roster list and find an empty
-        rosterlist = sheet.col_value(rosterIdCol) # 'C'
-        i = 1
+        rosterlist = sheet.col_values(rosterIdCol) # 'C'
+        i = 0
         for r in rosterlist:
             i = i + 1
             if r == "":
@@ -73,26 +73,50 @@ def updateEntry(session, tagid, splitsStrings):
     # check if the session sheet already exists, if not duplicate it
     try:
         sheet = client.open(gsheetfile).worksheet(session)
-    except gspread.SpreadsheetNotFound:
+    except gspread.exceptions.WorksheetNotFound:
         # duplicate template sheet and rename to session
+        sheet = client.open(gsheetfile).worksheet("template")
         log.debug("creating {} from template".format(session))
-        client.duplicate_sheet("template", new_sheet_name=session)
+        sheet.duplicate(insert_sheet_index=None, new_sheet_name=session)
+        sheet = client.open(gsheetfile).worksheet(session)
+
+        # update distance and cones/gates
+        cones = len(splits)+1
+        distance = 40
+        if "60" in session:
+            distance = 60
+        elif "100" in session:
+            distance = 100
+        log.debug("updating distance and cones {} {}".format(distance, cones))
+        sheet.update_cell(3, 8, distance) # H3
+        sheet.update_cell(3, 12, cones) # L3
+
+        # need to delete the "Cone / Gate Placement" rows that aren't required.
+        # J6:P6
+        #cell = sheet.find("Cone / Gate Placement")
+        log.debug("clearing Cone / Gate Placement to fix plot x-axis")
+        start = alphabet[alphabet.index("G") + len(splits)] + str(6)
+        end = "P6"
+        cell_list = sheet.range(start + ":" + end)
+        for i, val in enumerate(cell_list):
+            cell_list[i].value = ""
+        sheet.update_cells(cell_list)
+
 
     # wait for copied sheet to update with tagid
     # (alternative) determine row of tagid from above)
-
-    # update distance and cones/gates
-
 
     # in the session sheet udpate splits
     # splits start in 'G'
     # roster -> session mapping rows
     # 6,7,8,9...   -> 10, 21, 32, 43....
     # https://alteredqualia.com/visualization/hn/sequence/
+
     splitCol = 7 # 'G'
-    for s in splits:
+    for i, s in enumerate(splits):
         splitRow = 11*(rosterIdRow-5)-1
-        sheet.update_cell(splitRow, splitCol, s)
+        sheet.update_cell(splitRow, splitCol+i, s)
+    log.debug(splits)
 
     # @TODO append trials rather than just overwrite the first one
     #       this way you can see the multiple curves on the plot
