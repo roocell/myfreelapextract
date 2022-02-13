@@ -41,6 +41,7 @@ gsheetfile = 'Dynamic Sprint Velocity Profiling'
 def updateEntry(session, tagid, splitsStrings):
     # splits come in like "00:03.06" need to convert to seconds as float
     splits = []
+    log.debug(splitsStrings)
     for s in splitsStrings:
         parts = s.split(':')
         minutes = float(parts[0])

@@ -4,13 +4,15 @@
 
 # download chromedriver.exe from https://chromedriver.chromium.org/downloads
 
-# https://medium.com/daily-python/python-script-to-edit-google-sheets-daily-python-7-aadce27846c0
-
 # usage:
-# python myfreelapextract.py <user> <password> <session title> <tag id(optional)>
+# python myfreelapextract.py <session title> <tag id(optional)>
 #  where:
 #  <tag id(optional)> supply this argument to use the last run for a tagid
 #                     if not given, will search for updated entry and use that.
+
+# python myfreelapextract.py "Hr6 40yrd WK1" "3 AC-3476"
+# or to monitor update
+#  python myfreelapextract.py "Hr6 40yrd WK1"
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -22,6 +24,9 @@ import datetime
 import logging
 import time
 import sys
+import sheet
+from myfreelapcreds import user
+from myfreelapcreds import password
 
 # create logger
 log = logging.getLogger(__file__)
@@ -32,11 +37,9 @@ formatter = logging.Formatter('%(asctime)s %(levelname)s %(filename)s:%(lineno)d
 ch.setFormatter(formatter)
 log.addHandler(ch)
 
-user = sys.argv[1]
-password = sys.argv[2]
-session = sys.argv[3]
-if len(sys.argv) > 4:
-    tagid = sys.argv[4]
+session = sys.argv[1]
+if len(sys.argv) > 2:
+    tagid = sys.argv[2]
 else:
     tagid = ""
 
@@ -150,6 +153,7 @@ while True:
 
     # click on the headtable to drop it down (otherwise we dont get values)
     driver.execute_script("arguments[0].click();", headerTable) # perform JS click
+    time.sleep(0.25) # need to wait a bit for the dropdown to work otherwise no data
 
     log.debug("{} {} {} {}".format(instance, tagid, totalTime, splitTable.get_attribute("class")))
 
@@ -165,9 +169,10 @@ while True:
     lap = []
     laptime = []
     splitTime = []
+    # numRows 0,6,12
     for i in range(0,numRows):
         tdsPerRow = 6
-        offset = i*int(numRows/tdsPerRow)
+        offset = i*tdsPerRow
         lap.append(tds[0+offset].text)
         laptime.append(tds[1+offset].text)
         splitTime.append(tds[2+offset].text)
@@ -175,5 +180,11 @@ while True:
     log.debug("{} {} {}".format(lap, laptime, splitTime))
 
     # go and update googlesheets
+    log.debug("=======================")
+    log.debug("updating googlesheet...")
+    log.debug("=======================")
+    sheet.updateEntry(session, tagid, splitTime)
+
+
 
     time.sleep(1)
